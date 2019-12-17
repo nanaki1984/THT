@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{78602A2B-4A07-435D-B6BD-8DB059AA7062}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "THT",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
