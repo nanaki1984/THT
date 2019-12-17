@@ -11,8 +11,13 @@ void FPathGenerator::Setup(ETileType* InTiles, int32 InLevelSize)
 
 bool FPathGenerator::GeneratePath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath)
 {
+    OutPath.SetNum(0, false);
+
     if (Start.X == End.X && Start.Y == End.Y)
+    {
+        OutPath.Insert(FIntVector(Start.X, Start.Y, 0), 0);
         return true;
+    }
 
     TArray<FPathPoint*> OpenSet;
     TBitArray<FDefaultBitArrayAllocator> CloseSet;

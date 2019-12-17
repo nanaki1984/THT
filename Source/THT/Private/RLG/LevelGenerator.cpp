@@ -36,9 +36,10 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
         Tiles = MoveTemp(RandomLevel.Tiles);
         TileFlags.SetNum(Tiles.Num());
 
-        FIntVector Corner0, Corner1;
-        int32 MinDist0 = TNumericLimits<int32>::Max(),
-              MinDist1 = TNumericLimits<int32>::Max();
+        int32 MinDistNE = TNumericLimits<int32>::Max(),
+              MinDistSE = TNumericLimits<int32>::Max(),
+              MinDistSW = TNumericLimits<int32>::Max(),
+              MinDistNW = TNumericLimits<int32>::Max();
 
         int32 LastTile      = LevelSize - 1,
               LastTileIndex = LevelSize * LevelSize - 1;
@@ -52,42 +53,59 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
                 continue;
             }
 
-            int32 Dist0 = X + Y;
-            int32 Dist1 = (LastTile - X) + (LastTile - Y);
+            int32 DistNE = (LastTile - X) + Y,
+                  DistSE = (LastTile - X) + (LastTile - Y),
+                  DistSW = X + (LastTile - Y),
+                  DistNW = X + Y;
 
-            if (Dist0 < MinDist0)
+            if (DistNE < MinDistNE)
             {
-                Corner0 = FIntVector(X, Y, 0);
-                MinDist0 = Dist0;
+                CornerNE = FIntVector(X, Y, 0);
+                MinDistNE = DistNE;
             }
-
-            if (Dist1 < MinDist1)
+            if (DistSE < MinDistSE)
             {
-                Corner1 = FIntVector(X, Y, 0);
-                MinDist1 = Dist1;
+                CornerSE = FIntVector(X, Y, 0);
+                MinDistSE = DistSE;
+            }
+            if (DistSW < MinDistSW)
+            {
+                CornerSW = FIntVector(X, Y, 0);
+                MinDistSW = DistSW;
+            }
+            if (DistNW < MinDistNW)
+            {
+                CornerNW = FIntVector(X, Y, 0);
+                MinDistNW = DistNW;
             }
 
             TileFlags[Index] = (1 << (int32)ECellFlags::Floor) |
                                (1 << (int32)ECellFlags::Ceiling);
 
             if (0 == Y || ETileType::Blocked == Tiles[Index - LevelSize])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::NWall);
-            if (LastTile == Y || ETileType::Blocked == Tiles[Index + LevelSize])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::SWall);
-            if (0 == X || ETileType::Blocked == Tiles[Index - 1])
                 TileFlags[Index] |= (1 << (int32)ECellFlags::WWall);
-            if (LastTile == X || ETileType::Blocked == Tiles[Index + 1])
+            if (LastTile == Y || ETileType::Blocked == Tiles[Index + LevelSize])
                 TileFlags[Index] |= (1 << (int32)ECellFlags::EWall);
+            if (0 == X || ETileType::Blocked == Tiles[Index - 1])
+                TileFlags[Index] |= (1 << (int32)ECellFlags::SWall);
+            if (LastTile == X || ETileType::Blocked == Tiles[Index + 1])
+                TileFlags[Index] |= (1 << (int32)ECellFlags::NWall);
         }
 
         FPathGenerator PathGen;
         PathGen.Setup(Tiles.GetData(), LevelSize);
 
         TArray<FIntVector> Path;
-        if (PathGen.GeneratePath(Corner0, Corner1, Path))
-            LevelCenter = Path[Path.Num() >> 1];
+        FIntVector Center0, Center1;
+        verify(PathGen.GeneratePath(CornerNW, CornerSE, Path));
+        Center0 = Path[Path.Num() >> 1];
+        verify(PathGen.GeneratePath(CornerNE, CornerSW, Path));
+        Center1 = Path[Path.Num() >> 1];
+        verify(PathGen.GeneratePath(Center0, Center1, Path));
+        LevelCenter = Path[Path.Num() >> 1];
 
 		// ToDo: compute nearest distance to wall and distance from center for every cell
+        // ToDo: players needs a map of the level, with fog of war to keep the discovery reward intact
 
         return true;
     }
@@ -100,4 +118,11 @@ ETileType ALevelGenerator::GetTileAt(int32 X, int32 Y) const
     if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
         return Tiles[Y * LevelSize + X];
     return ETileType::Blocked;
+}
+
+bool ALevelGenerator::HasTileFlag(int32 X, int32 Y, ECellFlags Flag) const
+{
+    if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
+        return TileFlags[Y * LevelSize + X] & (1 << (int32)Flag);
+    return false;
 }

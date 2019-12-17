@@ -39,6 +39,15 @@ protected:
     int32 LevelSize;
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    FIntVector CornerNE;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    FIntVector CornerSE;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    FIntVector CornerSW;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    FIntVector CornerNW;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     FIntVector LevelCenter;
 
     TArray<ETileType> Tiles;
@@ -56,4 +65,6 @@ public:
 
     UFUNCTION(BlueprintCallable)
     ETileType GetTileAt(int32 X, int32 Y) const;
+    UFUNCTION(BlueprintCallable)
+    bool HasTileFlag(int32 X, int32 Y, ECellFlags Flag) const;
 };
