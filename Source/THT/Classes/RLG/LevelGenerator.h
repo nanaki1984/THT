@@ -18,6 +18,29 @@ enum class ECellFlags : uint8
     WWall,
 };
 
+USTRUCT(BlueprintType)
+struct FPlacingData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere)
+    int32 MinWallsDistance;
+    UPROPERTY(EditAnywhere)
+    int32 MaxWallsDistance;
+    UPROPERTY(EditAnywhere)
+    int32 MinDistanceFromCenter;
+    UPROPERTY(EditAnywhere)
+    int32 MaxDistanceFromCenter;
+
+    FORCEINLINE bool TileIsValid(const FIntVector& Distances)
+    {
+        return Distances.Z >= MinWallsDistance
+            && Distances.Z <= MaxWallsDistance
+            && Distances.Y >= MinDistanceFromCenter
+            && Distances.Y <= MaxDistanceFromCenter;
+    }
+};
+
 UCLASS()
 class THT_API ALevelGenerator : public AActor
 {
@@ -35,6 +58,13 @@ protected:
     UPROPERTY(Category=CellularAutomata, EditAnywhere, BlueprintReadOnly)
     float MinimumAreaCovered;
 
+    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
+    int32 TreasuresCount;
+    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
+    FPlacingData ExitDoor;
+    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
+    FPlacingData Treasures;
+
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     int32 LevelSize;
 
@@ -49,9 +79,14 @@ protected:
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     FIntVector LevelCenter;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    FIntVector ExitDoorPosition;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
+    TArray<FIntVector> TreasurePositions;
 
     TArray<ETileType> Tiles;
     TArray<int32> TileFlags;
+    TArray<FIntVector> TileDistances;
 
     virtual void BeginPlay() override;
 
@@ -67,4 +102,6 @@ public:
     ETileType GetTileAt(int32 X, int32 Y) const;
     UFUNCTION(BlueprintCallable)
     bool HasTileFlag(int32 X, int32 Y, ECellFlags Flag) const;
+    UFUNCTION(BlueprintCallable)
+    const FIntVector& GetTileDistances(int32 X, int32 Y) const;
 };
