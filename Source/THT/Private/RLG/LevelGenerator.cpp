@@ -119,8 +119,7 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
 
             verify(PathGen.GeneratePath(LevelCenter, FIntVector(X, Y, 0), Path));
             FIntVector& Distances = TileDistances[Index];
-            Distances.X = FMath::Abs(LevelCenter.X - X) + FMath::Abs(LevelCenter.Y - Y);
-            int32 CenterDist = Distances.Y = Path.Num();
+            int32 CenterDist = Distances.X = Path.Num();
 
             int32 MinWallDist = TNumericLimits<int32>::Max();
             for (int32 OtherIndex = 0; OtherIndex <= LastTileIndex; ++OtherIndex)
@@ -129,12 +128,50 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
                     continue;
 
                 int32 OtherX = OtherIndex % LevelSize, OtherY = OtherIndex / LevelSize;
-                int32 WallDist = FMath::Abs(X - OtherX) + FMath::Abs(Y - OtherY);
+
+                int32 WallDist = FMath::Abs(X - OtherX) + FMath::Abs(Y - OtherY) - 1;
                 if (WallDist < MinWallDist)
                     MinWallDist = WallDist;
             }
 
-            Distances.Z = MinWallDist;
+            Distances.Y = MinWallDist;
+        }
+
+        for (int32 Index = 0; Index <= LastTileIndex; ++Index)
+        {
+            if (ETileType::Blocked == Tiles[Index])
+                continue;
+
+            FIntVector& Distances = TileDistances[Index];
+
+            int32 X   = Index % LevelSize,
+                  Y   = Index / LevelSize,
+                  Rad = 8;
+
+            int32 MaxWallDist = 0, TotalWeight = 0;
+            for (int32 J = -Rad; J <= Rad; ++J)
+            {
+                for (int32 K = -Rad; K <= Rad; ++K)
+                {
+                    if (FMath::Abs(J) + FMath::Abs(K) > Rad)
+                        continue;
+
+                    int32 XX = X + J, YY = Y + K;
+                    if (XX >= 0 && XX <= LastTile && YY >= 0 && YY <= LastTile)
+                    {
+                        int32 OtherIndex = YY * LevelSize + XX;
+                        if (Tiles[OtherIndex] > ETileType::Blocked)
+                        {
+                            //MaxWallDist += TileDistances[OtherIndex].Y;
+                            //++TotalWeight;
+                            MaxWallDist = FMath::Max(MaxWallDist, TileDistances[OtherIndex].Y);
+                        }
+                    }
+                }
+            }
+
+            //Distances.Z = FMath::Max(Distances.Y, MaxWallDist / TotalWeight);
+            Distances.Z = MaxWallDist;
 
             if (ExitDoor.TileIsValid(Distances))
                 ExitDoorPositions.Add(FIntVector(X, Y, 0));
@@ -155,7 +192,8 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
 		}
 
         for (int32 i = 0; i < TreasuresCount; ++i)
-            TreasurePositions.Add(TreasurePosList[i]);
+            if (i < TreasurePosList.Num())
+                TreasurePositions.Add(TreasurePosList[i]);
 
         // ToDo: players needs a map of the level, with fog of war to keep the discovery reward intact
 

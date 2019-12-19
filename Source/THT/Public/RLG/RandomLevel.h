@@ -13,7 +13,7 @@ enum class ETileType : uint8
 struct THT_API FRandomLevel
 {
 public:
-	const int32 kBaseLevelSize = 128;
+	const int32 kBaseLevelSize = 80;
 	const int32 kBaseLevelTilesCount = kBaseLevelSize * kBaseLevelSize;
 
 private:

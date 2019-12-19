@@ -7,6 +7,10 @@ void FPathGenerator::Setup(ETileType* InTiles, int32 InLevelSize)
     LevelSize = InLevelSize;
     check(LevelSize > 0);
     Points.SetNum(LevelSize * LevelSize);
+
+    OpenSet.Reserve(LevelSize);
+    CloseSet.Init(false, LevelSize * LevelSize);
+    VisitedSet.Init(false, LevelSize * LevelSize);
 }
 
 bool FPathGenerator::GeneratePath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath)
@@ -19,11 +23,9 @@ bool FPathGenerator::GeneratePath(const FIntVector& Start, const FIntVector& End
         return true;
     }
 
-    TArray<FPathPoint*> OpenSet;
-    TBitArray<FDefaultBitArrayAllocator> CloseSet;
-    TBitArray<FDefaultBitArrayAllocator> VisitedSet;
-    CloseSet.Init(false, LevelSize * LevelSize);
-    VisitedSet.Init(false, LevelSize * LevelSize);
+    OpenSet.Reset();
+    CloseSet.SetRange(0, LevelSize * LevelSize, false);
+    VisitedSet.SetRange(0, LevelSize * LevelSize, false);
 
     int32 Offset = Start.X + Start.Y * LevelSize;
     Points[Offset] = FPathPoint(Start.X, Start.Y);

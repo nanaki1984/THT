@@ -24,20 +24,35 @@ struct FPlacingData
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere)
-    int32 MinWallsDistance;
-    UPROPERTY(EditAnywhere)
-    int32 MaxWallsDistance;
-    UPROPERTY(EditAnywhere)
     int32 MinDistanceFromCenter;
     UPROPERTY(EditAnywhere)
     int32 MaxDistanceFromCenter;
+    UPROPERTY(EditAnywhere)
+    int32 MinNearestWallDistance;
+    UPROPERTY(EditAnywhere)
+    int32 MaxNearestWallDistance;
+    UPROPERTY(EditAnywhere)
+    int32 MinFarthestWallDistance;
+    UPROPERTY(EditAnywhere)
+    int32 MaxFarthestWallDistance;
+
+    FPlacingData()
+        : MinDistanceFromCenter(0)
+        , MaxDistanceFromCenter(255)
+        , MinNearestWallDistance(0)
+        , MaxNearestWallDistance(255)
+        , MinFarthestWallDistance(0)
+        , MaxFarthestWallDistance(255)
+    { }
 
     FORCEINLINE bool TileIsValid(const FIntVector& Distances)
     {
-        return Distances.Z >= MinWallsDistance
-            && Distances.Z <= MaxWallsDistance
-            && Distances.Y >= MinDistanceFromCenter
-            && Distances.Y <= MaxDistanceFromCenter;
+        return Distances.X >= MinDistanceFromCenter
+            && Distances.X <= MaxDistanceFromCenter
+            && Distances.Y >= MinNearestWallDistance
+            && Distances.Y <= MaxNearestWallDistance
+            && Distances.Z >= MinFarthestWallDistance
+            && Distances.Z <= MaxFarthestWallDistance;
     }
 };
 

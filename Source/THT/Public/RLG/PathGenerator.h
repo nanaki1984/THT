@@ -40,6 +40,10 @@ private:
     int32 LevelSize;
     TArray<FPathPoint> Points;
 
+    TArray<FPathPoint*> OpenSet;
+    TBitArray<FDefaultBitArrayAllocator> CloseSet;
+    TBitArray<FDefaultBitArrayAllocator> VisitedSet;
+
 public:
     void Setup(ETileType* InTiles, int32 InLevelSize = 64);
     bool GeneratePath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath);
