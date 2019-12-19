@@ -1,9 +1,8 @@
 #include "PathGenerator.h"
 
-void FPathGenerator::Setup(ETileType* InTiles, int32 InLevelSize)
+void FPathGenerator::Setup(TArray<int32>& InTileCosts, int32 InLevelSize)
 {
-    Tiles = InTiles;
-    check(Tiles);
+    TileCosts = MoveTemp(InTileCosts);
     LevelSize = InLevelSize;
     check(LevelSize > 0);
     Points.SetNum(LevelSize * LevelSize);
@@ -68,11 +67,11 @@ bool FPathGenerator::GeneratePath(const FIntVector& Start, const FIntVector& End
                 Offset = X + Y * LevelSize;
                 if (CloseSet[Offset])
                     continue;
-                if (ETileType::Blocked == Tiles[Offset])
+                if (0 == TileCosts[Offset])
                     continue;
 
                 int32 Manhattan = FMath::Abs(End.X - X) + FMath::Abs(End.Y - Y);
-                FPathPoint NewPathPoint(X, Y, Current, 1, Manhattan);
+                FPathPoint NewPathPoint(X, Y, Current, TileCosts[Offset], Manhattan);
 
                 if (!VisitedSet[Offset] || NewPathPoint.G < Points[Offset].G)
                 {

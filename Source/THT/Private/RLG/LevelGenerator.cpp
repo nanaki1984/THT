@@ -2,7 +2,8 @@
 #include "RLG/PathGenerator.h"
 
 ALevelGenerator::ALevelGenerator()
-    : InitialChance(.4f)
+    : InitialLevelWidth(80)
+    , InitialChance(.4f)
     , BirthLimit(4)
     , DeathLimit(3)
     , Steps(6)
@@ -25,32 +26,51 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
     bool bSucceded = false;
     do
     {
-        RandomLevel.Generate(InitialChance, BirthLimit, DeathLimit, Steps);
+        RandomLevel.Generate(InitialLevelWidth, InitialChance, BirthLimit, DeathLimit, Steps);
         bSucceded = RandomLevel.QualityCheck(MinimumAreaCovered);
         ++Counter;
     } while (!bSucceded && Counter <= MaxTriesCount);
 
     if (bSucceded)
     {
-        LevelSize = RandomLevel.kBaseLevelSize;
+        LevelSize = RandomLevel.GetLevelSize();
+        Tiles.SetNum(LevelSize * LevelSize);
+/*
         Tiles = MoveTemp(RandomLevel.Tiles);
         TileFlags.SetNum(Tiles.Num());
         TileDistances.SetNum(Tiles.Num());
+*/
+        int32 LastTile      = LevelSize - 1,
+              LastTileIndex = LevelSize * LevelSize - 1;
+
+        TArray<int32> TileCosts;
+        for (int32 Index = 0; Index < LastTileIndex; ++Index)
+        {
+            if (RandomLevel.GetTileIsValid(Index))
+            {
+                Tiles[Index].Type = ETileType::AnyOther;
+                TileCosts.Add(1);
+            }
+            else
+            {
+                Tiles[Index].Type = ETileType::Blocked;
+                TileCosts.Add(0);
+            }
+        }
 
         int32 MinDistNE = TNumericLimits<int32>::Max(),
               MinDistSE = TNumericLimits<int32>::Max(),
               MinDistSW = TNumericLimits<int32>::Max(),
               MinDistNW = TNumericLimits<int32>::Max();
 
-        int32 LastTile      = LevelSize - 1,
-              LastTileIndex = LevelSize * LevelSize - 1;
         for (int32 Index = 0; Index <= LastTileIndex; ++Index)
         {
-            int32 X = Index % LevelSize, Y = Index / LevelSize;
+            int32 X = Index % LevelSize,
+                  Y = Index / LevelSize;
 
-            if (ETileType::Blocked == Tiles[Index])
+            if (ETileType::Blocked == Tiles[Index].Type)
             {
-                TileFlags[Index] = 0;
+                Tiles[Index].Flags = 0;
                 continue;
             }
 
@@ -80,21 +100,23 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
                 MinDistNW = DistNW;
             }
 
-            TileFlags[Index] = (1 << (int32)ECellFlags::Floor) |
-                               (1 << (int32)ECellFlags::Ceiling);
+            int32 Flags = (1 << (int32)ECellFlags::Floor) |
+                          (1 << (int32)ECellFlags::Ceiling);
 
-            if (0 == Y || ETileType::Blocked == Tiles[Index - LevelSize])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::WWall);
-            if (LastTile == Y || ETileType::Blocked == Tiles[Index + LevelSize])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::EWall);
-            if (0 == X || ETileType::Blocked == Tiles[Index - 1])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::SWall);
-            if (LastTile == X || ETileType::Blocked == Tiles[Index + 1])
-                TileFlags[Index] |= (1 << (int32)ECellFlags::NWall);
+            if (0 == Y || ETileType::Blocked == Tiles[Index - LevelSize].Type)
+                Flags |= (1 << (int32)ECellFlags::WWall);
+            if (LastTile == Y || ETileType::Blocked == Tiles[Index + LevelSize].Type)
+                Flags |= (1 << (int32)ECellFlags::EWall);
+            if (0 == X || ETileType::Blocked == Tiles[Index - 1].Type)
+                Flags |= (1 << (int32)ECellFlags::SWall);
+            if (LastTile == X || ETileType::Blocked == Tiles[Index + 1].Type)
+                Flags |= (1 << (int32)ECellFlags::NWall);
+
+            Tiles[Index].Flags = Flags;
         }
 
         FPathGenerator PathGen;
-        PathGen.Setup(Tiles.GetData(), LevelSize);
+        PathGen.Setup(TileCosts, LevelSize);
 
         TArray<FIntVector> Path;
         FIntVector Center0, Center1;
@@ -109,22 +131,23 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
         TArray<FIntVector> TreasurePosList;
         for (int32 Index = 0; Index <= LastTileIndex; ++Index)
         {
-            if (ETileType::Blocked == Tiles[Index])
+            if (ETileType::Blocked == Tiles[Index].Type)
             {
-                TileDistances[Index] = FIntVector::ZeroValue;
+                Tiles[Index].Distances = FIntVector::ZeroValue;
                 continue;
             }
 
-            int32 X = Index % LevelSize, Y = Index / LevelSize;
+            int32 X = Index % LevelSize,
+                  Y = Index / LevelSize;
 
             verify(PathGen.GeneratePath(LevelCenter, FIntVector(X, Y, 0), Path));
-            FIntVector& Distances = TileDistances[Index];
+            FIntVector& Distances = Tiles[Index].Distances;
             int32 CenterDist = Distances.X = Path.Num();
 
             int32 MinWallDist = TNumericLimits<int32>::Max();
             for (int32 OtherIndex = 0; OtherIndex <= LastTileIndex; ++OtherIndex)
             {
-                if (Index == OtherIndex || Tiles[OtherIndex] > ETileType::Blocked)
+                if (Index == OtherIndex || Tiles[OtherIndex].Type > ETileType::Blocked)
                     continue;
 
                 int32 OtherX = OtherIndex % LevelSize, OtherY = OtherIndex / LevelSize;
@@ -139,16 +162,16 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
 
         for (int32 Index = 0; Index <= LastTileIndex; ++Index)
         {
-            if (ETileType::Blocked == Tiles[Index])
+            if (ETileType::Blocked == Tiles[Index].Type)
                 continue;
 
-            FIntVector& Distances = TileDistances[Index];
+            FIntVector& Distances = Tiles[Index].Distances;
 
             int32 X   = Index % LevelSize,
                   Y   = Index / LevelSize,
                   Rad = 8;
 
-            int32 MaxWallDist = 0, TotalWeight = 0;
+            int32 MaxWallDist = 0;
             for (int32 J = -Rad; J <= Rad; ++J)
             {
                 for (int32 K = -Rad; K <= Rad; ++K)
@@ -160,17 +183,12 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
                     if (XX >= 0 && XX <= LastTile && YY >= 0 && YY <= LastTile)
                     {
                         int32 OtherIndex = YY * LevelSize + XX;
-                        if (Tiles[OtherIndex] > ETileType::Blocked)
-                        {
-                            //MaxWallDist += TileDistances[OtherIndex].Y;
-                            //++TotalWeight;
-                            MaxWallDist = FMath::Max(MaxWallDist, TileDistances[OtherIndex].Y);
-                        }
+                        if (Tiles[OtherIndex].Type > ETileType::Blocked)
+                            MaxWallDist = FMath::Max(MaxWallDist, Tiles[OtherIndex].Distances.Y);
                     }
                 }
             }
 
-            //Distances.Z = FMath::Max(Distances.Y, MaxWallDist / TotalWeight);
             Distances.Z = MaxWallDist;
 
             if (ExitDoor.TileIsValid(Distances))
@@ -206,20 +224,20 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
 ETileType ALevelGenerator::GetTileAt(int32 X, int32 Y) const
 {
     if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
-        return Tiles[Y * LevelSize + X];
+        return Tiles[Y * LevelSize + X].Type;
     return ETileType::Blocked;
 }
 
 bool ALevelGenerator::HasTileFlag(int32 X, int32 Y, ECellFlags Flag) const
 {
     if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
-        return TileFlags[Y * LevelSize + X] & (1 << (int32)Flag);
+        return Tiles[Y * LevelSize + X].Flags & (1 << (int32)Flag);
     return false;
 }
 
 const FIntVector& ALevelGenerator::GetTileDistances(int32 X, int32 Y) const
 {
     if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
-        return TileDistances[Y * LevelSize + X];
+        return Tiles[Y * LevelSize + X].Distances;
     return FIntVector::ZeroValue;
 }

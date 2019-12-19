@@ -2,8 +2,8 @@
 
 int32 FRandomLevel::CountAliveNeighbours(int32 Index) const
 {
-	int32 X0 = Index % kBaseLevelSize,
-		  Y0 = Index / kBaseLevelSize;
+	int32 X0 = Index % LevelSize,
+		  Y0 = Index / LevelSize;
 
 	int32 Counter = 0;
 	for (int32 I = -1; I <= 1; ++I)
@@ -15,10 +15,10 @@ int32 FRandomLevel::CountAliveNeighbours(int32 Index) const
 
 			int32 X = X0 + I,
 				  Y = Y0 + J;
-            if (X < 0 || X >= kBaseLevelSize || Y < 0 || Y >= kBaseLevelSize)
+            if (X < 0 || X >= LevelSize || Y < 0 || Y >= LevelSize)
                 continue;
 
-            if (Tiles[Y * kBaseLevelSize + X] > ETileType::Blocked)
+            if (Tiles[Y * LevelSize + X])
                 ++Counter;
 		}
 	}
@@ -28,24 +28,23 @@ int32 FRandomLevel::CountAliveNeighbours(int32 Index) const
 
 void FRandomLevel::DoSingleStep(int32 BirthLimit, int32 DeathLimit)
 {
-    for (int32 Index = 0; Index < kBaseLevelTilesCount; ++Index)
+    for (int32 Index = 0; Index < LevelTilesCount; ++Index)
     {
         int32 AliveCounter = CountAliveNeighbours(Index);
 
-        ETileType CurrTile = Tiles[Index];
-        if (CurrTile > ETileType::Blocked)
+        if (Tiles[Index])
         {
             if (AliveCounter < DeathLimit)
-                NextTiles[Index] = ETileType::Blocked;
+                NextTiles[Index] = false;
             else
-                NextTiles[Index] = CurrTile;
+                NextTiles[Index] = true;
         }
         else
         {
             if (AliveCounter > BirthLimit)
-                NextTiles[Index] = ETileType::AnyOther;
+                NextTiles[Index] = true;
             else
-                NextTiles[Index] = CurrTile;
+                NextTiles[Index] = false;
         }
     }
 
@@ -55,11 +54,11 @@ void FRandomLevel::DoSingleStep(int32 BirthLimit, int32 DeathLimit)
 void FRandomLevel::FloodFill(int32 FirstIndex, TFunction<void(int32, int32, int32)>&& Callback)
 {
     TBitArray<FDefaultBitArrayAllocator> CellsVisited;
-    CellsVisited.Init(false, kBaseLevelTilesCount);
+    CellsVisited.Init(false, LevelTilesCount);
 
     TArray<int32> CellsQueue;
     CellsQueue.Push(FirstIndex);
-    ETileType ValidType = Tiles[FirstIndex];
+    bool ValidType = Tiles[FirstIndex];
 
     while (CellsQueue.Num() > 0)
     {
@@ -70,37 +69,36 @@ void FRandomLevel::FloodFill(int32 FirstIndex, TFunction<void(int32, int32, int3
 
         if (Tiles[CellIndex] == ValidType)
         {
-            int32 X = CellIndex % kBaseLevelSize,
-                  Y = CellIndex / kBaseLevelSize;
+            int32 X = CellIndex % LevelSize,
+                  Y = CellIndex / LevelSize;
 
             Callback(CellIndex, X, Y);
 
             if (Y > 0) // Up
-                CellsQueue.Push(CellIndex - kBaseLevelSize);
-            if (Y < (kBaseLevelSize - 1)) // Down
-                CellsQueue.Push(CellIndex + kBaseLevelSize);
+                CellsQueue.Push(CellIndex - LevelSize);
+            if (Y < (LevelSize - 1)) // Down
+                CellsQueue.Push(CellIndex + LevelSize);
             if (X > 0) // Left
                 CellsQueue.Push(CellIndex - 1);
-            if (X < (kBaseLevelSize - 1)) // Right
+            if (X < (LevelSize - 1)) // Right
                 CellsQueue.Push(CellIndex + 1);
         }
     }
 }
 
-void FRandomLevel::Generate(float InitialChance, int32 BirthLimit, int32 DeathLimit, int32 Steps)
+void FRandomLevel::Generate(int32 InLevelSize, float InitialChance, int32 BirthLimit, int32 DeathLimit, int32 Steps)
 {
-	Tiles.SetNumUninitialized(kBaseLevelTilesCount);
-    NextTiles.SetNumUninitialized(kBaseLevelTilesCount);
+    LevelSize = FMath::Max(8, InLevelSize);
+    LevelTilesCount = LevelSize * LevelSize;
 
-    for (int32 Index = 0; Index < kBaseLevelTilesCount; ++Index)
-		Tiles[Index] = FMath::FRand() <= InitialChance
-			? ETileType::AnyOther
-			: ETileType::Blocked;
+    Tiles.Init(false, LevelTilesCount);
+    NextTiles.Init(false, LevelTilesCount);
+
+    for (int32 Index = 0; Index < LevelTilesCount; ++Index)
+		Tiles[Index] = FMath::FRand() <= InitialChance;
 
     for (int32 Step = 0; Step < Steps; ++Step)
         DoSingleStep(BirthLimit, DeathLimit);
-
-    NextTiles.SetNum(0);
 }
 
 bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
@@ -108,10 +106,10 @@ bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
     int32 ValidCellsCount = 0;
 
     TBitArray<FDefaultBitArrayAllocator> CellsValidity;
-    CellsValidity.Init(false, kBaseLevelTilesCount);
+    CellsValidity.Init(false, LevelTilesCount);
 
     int32 FirstIndex = 0;
-    while (Tiles[FirstIndex] == ETileType::Blocked && FirstIndex < kBaseLevelTilesCount)
+    while (!Tiles[FirstIndex] && FirstIndex < LevelTilesCount)
         ++FirstIndex;
 
     FloodFill(FirstIndex, [&CellsValidity, &ValidCellsCount](int32 CellIndex, int32 X, int32 Y)
@@ -120,32 +118,32 @@ bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
         ++ValidCellsCount;
     });
 
-    int32 Last = (kBaseLevelSize - 1);
+    int32 Last = (LevelSize - 1);
     TArray<int32> TilesToBeUnlocked;
-    for (int32 Index = 0; Index < kBaseLevelTilesCount; ++Index)
+    for (int32 Index = 0; Index < LevelTilesCount; ++Index)
     {
         if (!CellsValidity[Index]) // Reset unreachable tiles
-            Tiles[Index] = ETileType::Blocked;
+            Tiles[Index] = false;
 
-        int32 X = Index % kBaseLevelSize,
-              Y = Index / kBaseLevelSize;
+        int32 X = Index % LevelSize,
+              Y = Index / LevelSize;
 
-        if (ETileType::AnyOther == Tiles[Index])
+        if (Tiles[Index])
         { // Look at left/right and up/down neighbours, if both blocked, unblock them
             if (Y > 0 && Y < Last)
             {
-                if (ETileType::Blocked == Tiles[Index - kBaseLevelSize]
-                 && ETileType::Blocked == Tiles[Index + kBaseLevelSize])
+                if (!Tiles[Index - LevelSize]
+                 && !Tiles[Index + LevelSize])
                 {
-                    TilesToBeUnlocked.Add(Index - kBaseLevelSize);
-                    TilesToBeUnlocked.Add(Index + kBaseLevelSize);
+                    TilesToBeUnlocked.Add(Index - LevelSize);
+                    TilesToBeUnlocked.Add(Index + LevelSize);
                 }
             }
 
             if (X > 0 && X < Last)
             {
-                if (ETileType::Blocked == Tiles[Index - 1]
-                 && ETileType::Blocked == Tiles[Index + 1])
+                if (!Tiles[Index - 1]
+                 && !Tiles[Index + 1])
                 {
                     TilesToBeUnlocked.Add(Index - 1);
                     TilesToBeUnlocked.Add(Index + 1);
@@ -155,13 +153,13 @@ bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
         else
         { // Check if three neightbours are not blocked, just unblock it
             int32 Counter = 0;
-            if (Y > 0 && Tiles[Index - kBaseLevelSize] > ETileType::Blocked)
+            if (Y > 0 && Tiles[Index - LevelSize])
                 ++Counter;
-            if (Y < Last && Tiles[Index + kBaseLevelSize] > ETileType::Blocked)
+            if (Y < Last && Tiles[Index + LevelSize])
                 ++Counter;
-            if (X > 0 && Tiles[Index - 1] > ETileType::Blocked)
+            if (X > 0 && Tiles[Index - 1])
                 ++Counter;
-            if (X < Last && Tiles[Index + 1] > ETileType::Blocked)
+            if (X < Last && Tiles[Index + 1])
                 ++Counter;
 
             if (Counter >= 3)
@@ -171,19 +169,19 @@ bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
 
     for (int32 Index : TilesToBeUnlocked)
     {
-        if (Tiles[Index] > ETileType::Blocked)
+        if (Tiles[Index])
             continue;
 
-        Tiles[Index] = ETileType::AnyOther;
+        Tiles[Index] = true;
         ++ValidCellsCount;
     }
     TilesToBeUnlocked.SetNum(0, false);
 
     // Remove holes smaller than 5 cells
-    CellsValidity.Init(false, kBaseLevelTilesCount);
-    for (int32 Index = 0; Index < kBaseLevelTilesCount; ++Index)
+    CellsValidity.Init(false, LevelTilesCount);
+    for (int32 Index = 0; Index < LevelTilesCount; ++Index)
     {
-        if (Tiles[Index] > ETileType::Blocked)
+        if (Tiles[Index])
             continue;
 
         if (!CellsValidity[Index])
@@ -206,14 +204,14 @@ bool FRandomLevel::QualityCheck(float MinimumAreaCovered)
 
     for (int32 Index : TilesToBeUnlocked)
     {
-        if (Tiles[Index] > ETileType::Blocked)
+        if (Tiles[Index])
             continue;
 
-        Tiles[Index] = ETileType::AnyOther;
+        Tiles[Index] = true;
         ++ValidCellsCount;
     }
 
-    float AreaCovered = ValidCellsCount / (float)kBaseLevelTilesCount;
+    float AreaCovered = ValidCellsCount / (float)LevelTilesCount;
     if (AreaCovered < MinimumAreaCovered)
         return false;
 

@@ -1,30 +1,25 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RandomLevel.generated.h"
-
-UENUM(BlueprintType)
-enum class ETileType : uint8
-{
-	Blocked = 0,
-	AnyOther,
-};
 
 struct THT_API FRandomLevel
 {
-public:
-	const int32 kBaseLevelSize = 80;
-	const int32 kBaseLevelTilesCount = kBaseLevelSize * kBaseLevelSize;
-
 private:
-	int32 CountAliveNeighbours(int32 Index) const;
+    int32 LevelSize;
+    int32 LevelTilesCount;
+
+    TBitArray<FDefaultBitArrayAllocator> Tiles;
+    TBitArray<FDefaultBitArrayAllocator> NextTiles;
+
+    int32 CountAliveNeighbours(int32 Index) const;
 	void DoSingleStep(int32 BirthLimit, int32 DeathLimit);
     void FloodFill(int32 FirstIndex, TFunction<void(int32, int32, int32)>&& Callback);
 
 public:
-	TArray<ETileType> Tiles;
-    TArray<ETileType> NextTiles;
 
-	void Generate(float InitialChance, int32 BirthLimit, int32 DeathLimit, int32 Steps);
+    FORCEINLINE int32 GetLevelSize() const { return LevelSize; }
+    FORCEINLINE bool GetTileIsValid(int32 Index) const { return Tiles[Index]; }
+
+	void Generate(int32 InLevelSize, float InitialChance, int32 BirthLimit, int32 DeathLimit, int32 Steps);
     bool QualityCheck(float MinimumAreaCovered);
 };

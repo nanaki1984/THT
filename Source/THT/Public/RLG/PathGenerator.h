@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RandomLevel.h"
 
 struct THT_API FPathGenerator
 {
@@ -36,7 +35,7 @@ private:
         { }
     };
 
-    ETileType* Tiles;
+    TArray<int32> TileCosts;
     int32 LevelSize;
     TArray<FPathPoint> Points;
 
@@ -45,6 +44,6 @@ private:
     TBitArray<FDefaultBitArrayAllocator> VisitedSet;
 
 public:
-    void Setup(ETileType* InTiles, int32 InLevelSize = 64);
+    void Setup(TArray<int32>& InTileCosts, int32 InLevelSize = 64);
     bool GeneratePath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath);
 };

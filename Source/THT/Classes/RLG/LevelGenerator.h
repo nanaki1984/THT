@@ -7,6 +7,13 @@
 #include "RLG/RandomLevel.h"
 #include "LevelGenerator.generated.h"
 
+UENUM(BlueprintType)
+enum class ETileType : uint8
+{
+    Blocked = 0,
+    AnyOther,
+};
+
 UENUM(BlueprintType, Meta = (Bitflags))
 enum class ECellFlags : uint8
 {
@@ -24,6 +31,8 @@ struct FPlacingData
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere)
+    int32 Count;
+    UPROPERTY(EditAnywhere)
     int32 MinDistanceFromCenter;
     UPROPERTY(EditAnywhere)
     int32 MaxDistanceFromCenter;
@@ -37,7 +46,8 @@ struct FPlacingData
     int32 MaxFarthestWallDistance;
 
     FPlacingData()
-        : MinDistanceFromCenter(0)
+        : Count(1)
+        , MinDistanceFromCenter(0)
         , MaxDistanceFromCenter(255)
         , MinNearestWallDistance(0)
         , MaxNearestWallDistance(255)
@@ -56,12 +66,35 @@ struct FPlacingData
     }
 };
 
+USTRUCT(BlueprintType)
+struct FTileData
+{
+	GENERATED_BODY()
+
+private:
+    TArray<FName, TInlineAllocator<4>> Classes;
+
+public:
+    UPROPERTY(BlueprintReadOnly)
+    ETileType Type;
+    UPROPERTY(BlueprintReadOnly, meta = (Bitmask, BitmaskEnum = "ECellFlags"))
+    int32 Flags;
+    UPROPERTY(BlueprintReadOnly)
+    FIntVector Distances;
+
+    FORCEINLINE void AddClass(FName ClassName) { Classes.AddUnique(ClassName); }
+    FORCEINLINE bool HasClass(FName ClassName) const { return Classes.Contains(ClassName); }
+    FORCEINLINE bool HasFlag(ECellFlags Flag) const { return Flags & (1 << (int32)Flag); }
+};
+
 UCLASS()
 class THT_API ALevelGenerator : public AActor
 {
 	GENERATED_BODY()
 
 protected:
+    UPROPERTY(Category=CellularAutomata, EditAnywhere, BlueprintReadOnly)
+    int32 InitialLevelWidth;
     UPROPERTY(Category=CellularAutomata, EditAnywhere, BlueprintReadOnly)
     float InitialChance;
     UPROPERTY(Category=CellularAutomata, EditAnywhere, BlueprintReadOnly)
@@ -79,6 +112,8 @@ protected:
     FPlacingData ExitDoor;
     UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
     FPlacingData Treasures;
+    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
+    TMap<FName, FPlacingData> Objects;
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     int32 LevelSize;
@@ -98,10 +133,12 @@ protected:
     FIntVector ExitDoorPosition;
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     TArray<FIntVector> TreasurePositions;
-
+/*
     TArray<ETileType> Tiles;
     TArray<int32> TileFlags;
     TArray<FIntVector> TileDistances;
+*/
+    TArray<FTileData> Tiles;
 
     virtual void BeginPlay() override;
 
