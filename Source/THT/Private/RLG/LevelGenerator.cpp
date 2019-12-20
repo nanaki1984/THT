@@ -35,11 +35,7 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
     {
         LevelSize = RandomLevel.GetLevelSize();
         Tiles.SetNum(LevelSize * LevelSize);
-/*
-        Tiles = MoveTemp(RandomLevel.Tiles);
-        TileFlags.SetNum(Tiles.Num());
-        TileDistances.SetNum(Tiles.Num());
-*/
+
         int32 LastTile      = LevelSize - 1,
               LastTileIndex = LevelSize * LevelSize - 1;
 
@@ -191,27 +187,15 @@ bool ALevelGenerator::GenerateNewTiles(int32 MaxTriesCount)
 
             Distances.Z = MaxWallDist;
 
-            if (ExitDoor.TileIsValid(Distances))
-                ExitDoorPositions.Add(FIntVector(X, Y, 0));
-
-            if (Treasures.TileIsValid(Distances))
-                TreasurePosList.Add(FIntVector(X, Y, 0));
+            for (auto& PlacingData : Objects)
+            {
+                if (PlacingData.Value.TileIsValid(Distances))
+                {
+                    Tiles[Index].AddClass(PlacingData.Key);
+                    TilesByClass.FindOrAdd(PlacingData.Key).Add(Index);
+                }
+            }
         }
-
-        check(ExitDoorPositions.Num() > 0);
-        ExitDoorPosition = ExitDoorPositions[FMath::RandRange(0, ExitDoorPositions.Num() - 1)];
-
-        int32 LastIndex = TreasurePosList.Num() - 1;
-		for (int32 i = 0; i <= LastIndex; ++i)
-		{
-			int32 Index = FMath::RandRange(i, LastIndex);
-			if (i != Index)
-                TreasurePosList.Swap(i, Index);
-		}
-
-        for (int32 i = 0; i < TreasuresCount; ++i)
-            if (i < TreasurePosList.Num())
-                TreasurePositions.Add(TreasurePosList[i]);
 
         // ToDo: players needs a map of the level, with fog of war to keep the discovery reward intact
 
@@ -240,4 +224,82 @@ const FIntVector& ALevelGenerator::GetTileDistances(int32 X, int32 Y) const
     if (X >= 0 && X < LevelSize && Y >= 0 && Y < LevelSize)
         return Tiles[Y * LevelSize + X].Distances;
     return FIntVector::ZeroValue;
+}
+
+bool ALevelGenerator::GetRandomPositionsByClass(FName Class, int32 Count, int32 MinDistance, TArray<FIntVector>& OutPositions)
+{
+    TArray<int32>* SubTiles = TilesByClass.Find(Class);
+    if (!SubTiles || 0 == SubTiles->Num())
+        return false;
+
+    // Shuffle indices of tiles of requested class
+    int32 TilesIndicesNum = SubTiles->Num();
+
+    TArray<int32> Indices;
+    Indices.SetNumUninitialized(TilesIndicesNum);
+    for (int32 Index = 0; Index < TilesIndicesNum; ++Index)
+        Indices[Index] = Index;
+    for (int32 Index = 0; Index < TilesIndicesNum - 1; ++Index)
+    {
+        int32 OtherIndex = FMath::RandRange(Index + 1, TilesIndicesNum - 1);
+        Indices.Swap(Index, OtherIndex);
+    }
+
+    int32 OutStartIndex = OutPositions.Num();
+    for (int32 Index = 0; Index < Count; ++Index)
+    {
+        int32 NextTileIndex = INDEX_NONE,
+              IndexOffset   = FMath::RandRange(0, TilesIndicesNum - 1),
+              TriesCount    = 0;
+        while (INDEX_NONE == NextTileIndex)
+        {
+            int32 TileIndex = (*SubTiles)[Indices[IndexOffset]];
+
+            int32 TileX = TileIndex % LevelSize,
+                  TileY = TileIndex / LevelSize;
+
+            bool bTileIsValid = true;
+            for (int32 I = 0; I < Index; ++I)
+            {
+                int32 Dist = FMath::Abs(OutPositions[OutStartIndex + I].X - TileX) + FMath::Abs(OutPositions[OutStartIndex + I].Y - TileY);
+                if (Dist < MinDistance)
+                {
+                    bTileIsValid = false;
+                    break;
+                }
+            }
+
+            if (bTileIsValid)
+            {
+                NextTileIndex = TileIndex;
+                Indices[IndexOffset] = Indices[--TilesIndicesNum];
+            }
+            else
+            {
+                IndexOffset = (IndexOffset + 1) % TilesIndicesNum;
+
+                if (++TriesCount == TilesIndicesNum)
+                {
+                    if (--MinDistance <= 0)
+                        return false;
+
+                    TriesCount  = 0;
+                }
+            }
+        }
+        check(NextTileIndex != INDEX_NONE);
+        OutPositions.Add(FIntVector(NextTileIndex % LevelSize, NextTileIndex / LevelSize, NextTileIndex));
+    }
+
+    for (int32 Index = 0; Index < Count; ++Index)
+    {
+        FIntVector& TilePos = OutPositions[OutStartIndex + Index];
+
+        SubTiles->Remove(TilePos.Z);
+        Tiles[TilePos.Z].RemoveClass(Class);
+
+        TilePos.Z = 0;
+    }
+
+    return true;
 }

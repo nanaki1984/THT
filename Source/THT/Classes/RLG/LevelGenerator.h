@@ -31,8 +31,6 @@ struct FPlacingData
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere)
-    int32 Count;
-    UPROPERTY(EditAnywhere)
     int32 MinDistanceFromCenter;
     UPROPERTY(EditAnywhere)
     int32 MaxDistanceFromCenter;
@@ -46,8 +44,7 @@ struct FPlacingData
     int32 MaxFarthestWallDistance;
 
     FPlacingData()
-        : Count(1)
-        , MinDistanceFromCenter(0)
+        : MinDistanceFromCenter(0)
         , MaxDistanceFromCenter(255)
         , MinNearestWallDistance(0)
         , MaxNearestWallDistance(255)
@@ -83,6 +80,8 @@ public:
     FIntVector Distances;
 
     FORCEINLINE void AddClass(FName ClassName) { Classes.AddUnique(ClassName); }
+    FORCEINLINE void RemoveClass(FName ClassName) { Classes.Remove(ClassName); }
+
     FORCEINLINE bool HasClass(FName ClassName) const { return Classes.Contains(ClassName); }
     FORCEINLINE bool HasFlag(ECellFlags Flag) const { return Flags & (1 << (int32)Flag); }
 };
@@ -107,12 +106,6 @@ protected:
     float MinimumAreaCovered;
 
     UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
-    int32 TreasuresCount;
-    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
-    FPlacingData ExitDoor;
-    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
-    FPlacingData Treasures;
-    UPROPERTY(Category = Placing, EditAnywhere, BlueprintReadOnly)
     TMap<FName, FPlacingData> Objects;
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
@@ -129,16 +122,9 @@ protected:
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
     FIntVector LevelCenter;
-    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
-    FIntVector ExitDoorPosition;
-    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly)
-    TArray<FIntVector> TreasurePositions;
-/*
-    TArray<ETileType> Tiles;
-    TArray<int32> TileFlags;
-    TArray<FIntVector> TileDistances;
-*/
+
     TArray<FTileData> Tiles;
+    TMap<FName, TArray<int32>> TilesByClass;
 
     virtual void BeginPlay() override;
 
@@ -156,4 +142,7 @@ public:
     bool HasTileFlag(int32 X, int32 Y, ECellFlags Flag) const;
     UFUNCTION(BlueprintCallable)
     const FIntVector& GetTileDistances(int32 X, int32 Y) const;
+
+    UFUNCTION(BlueprintCallable)
+    bool GetRandomPositionsByClass(FName Class, int32 Count, int32 MinDistance, TArray<FIntVector>& OutPositions);
 };
